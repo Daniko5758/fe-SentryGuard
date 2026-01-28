@@ -8,6 +8,9 @@ import { usePaymentStatus } from "@/hooks/usePaymentStatus";
 import LoadingLottie from "@/components/lottie/Loading";
 import { useRouter } from "next/navigation";
 
+import PrivyLoginButton from "@/src/components/PrivyLoginButton";
+import { usePrivy } from "@privy-io/react-auth";
+
 function formatExpiry(ts?: number) {
   if (!ts) return "-";
   return new Date(ts * 1000).toLocaleString();
@@ -25,6 +28,9 @@ export default function AuthGate() {
   const [paywallDismissed, setPaywallDismissed] = useState(false);
 
   const { data, loading, error } = usePaymentStatus(address);
+
+  //cek auth
+  const { authenticated } = usePrivy();
 
   const isInactive = isConnected && data?.status === "inactive";
   const isActive = isConnected && data?.status === "active";
@@ -48,7 +54,7 @@ export default function AuthGate() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wide text-gray-400">
-              Wallet
+              Account
             </div>
 
             <div className="mt-1 flex items-center gap-3">
@@ -58,8 +64,10 @@ export default function AuthGate() {
                 </div>
                 <div className="mt-1 text-xs text-gray-400">
                   {isConnected
-                    ? `Short: ${shortAddress(address)}`
-                    : "Connect untuk lanjut"}
+                    ? `Short: ${shortAddress(address)}${
+                        authenticated ? " • Privy" : ""
+                      }`
+                    : "Login (Privy) atau connect wallet untuk lanjut"}
                 </div>
               </div>
             </div>
@@ -88,7 +96,8 @@ export default function AuthGate() {
             </div>
           </div>
 
-          <div className="shrink-0">
+          <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <PrivyLoginButton />
             <ConnectWallet />
           </div>
         </div>
