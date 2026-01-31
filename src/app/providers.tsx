@@ -1,6 +1,6 @@
 "use client";
 
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
@@ -8,8 +8,6 @@ import { WagmiProvider } from "@privy-io/wagmi";
 
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { wagmiConfig, chain } from "@/lib/wagmi";
-
-const queryClient = new QueryClient();
 
 const privyConfig: PrivyClientConfig = {
   // bikin embedded wallet otomatis untuk user awam
@@ -23,12 +21,15 @@ const privyConfig: PrivyClientConfig = {
   // biar ada opsi email + external wallet
   loginMethods: ["email", "wallet", "google"],
   appearance: {
-    // optional: atur UI modal privy
-    // showWalletLoginFirst: false,
+    theme: "dark", // Aku tambahkan ini biar UI-nya otomatis gelap sesuai tema apps kamu
+    accentColor: "#676FFF",
+    logo: "https://auth.privy.io/logos/privy-logo.png", // Bisa diganti logo kamu sendiri nanti
   },
 };
 
 export default function Providers({ children }: PropsWithChildren) {
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
@@ -36,7 +37,12 @@ export default function Providers({ children }: PropsWithChildren) {
     >
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <OnchainKitProvider chain={chain}>{children}</OnchainKitProvider>
+          <OnchainKitProvider 
+            chain={chain}
+            apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} // Optional: Tambah ini kalau punya, biar lebih stabil
+          >
+            {children}
+          </OnchainKitProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

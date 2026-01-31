@@ -1,20 +1,23 @@
-import type { EncryptedPayloadV1 } from "@/lib/crypto/encrypt";
+import { EncryptedPayloadV1 } from "@/lib/crypto/encrypt";
 
-export async function fetchPayloadFromCid(cid: string): Promise<EncryptedPayloadV1> {
-  // kamu bisa ganti gateway kalau mau
-  const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
+// Gateway IPFS publik (bisa diganti gateway dedicated jika punya)
+const IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed fetch IPFS payload (${res.status})`);
-
-  const json = (await res.json()) as EncryptedPayloadV1;
-
-  if (json?.version !== 1 || json?.algo !== "AES-GCM") {
-    throw new Error("Invalid payload format/version");
-  }
-  if (!json.docHash) {
-    throw new Error("Payload missing docHash (update encrypt.ts + re-upload doc)");
+export async function fetchEncryptedPayload(cid: string): Promise<EncryptedPayloadV1> {
+  const url = `${IPFS_GATEWAY}${cid}`;
+  
+  const res = await fetch(url);
+  
+  if (!res.ok) {
+    throw new Error(`Gagal download file dari IPFS (CID: ${cid})`);
   }
 
-  return json;
+  const json = await res.json();
+  
+  // Validasi sederhana apakah ini format enkripsi kita
+  if (!json.ciphertextB64 || !json.ivB64) {
+    throw new Error("Format file di IPFS tidak valid / bukan file terenkripsi.");
+  }
+
+  return json as EncryptedPayloadV1;
 }

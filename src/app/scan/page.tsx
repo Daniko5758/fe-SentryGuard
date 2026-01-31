@@ -1,4 +1,4 @@
-import Scanner from "@/src/components/Scanner";
+import Scanner from "@/components/Scanner";
 import Link from "next/link";
 
 export default function ScanPage() {

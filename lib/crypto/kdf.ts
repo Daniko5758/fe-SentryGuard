@@ -1,4 +1,4 @@
-import { hexToBytes, ensureArrayBufferBytes } from "./base64";
+import { hexToBytes } from "./base64";
 import { sha256Bytes } from "./hash";
 
 const INFO = new TextEncoder().encode("SecureOnchainVault/v1");
@@ -7,27 +7,28 @@ export async function deriveAesKeyFromSignature(params: {
   signatureHex: string;
   salt: Uint8Array;
 }): Promise<CryptoKey> {
-  // signature hex -> bytes (copy to ensure ArrayBuffer backing)
-  const sigBytes = ensureArrayBufferBytes(hexToBytes(params.signatureHex));
+  // 1. Signature Hex -> Bytes
+  const sigBytes = hexToBytes(params.signatureHex);
 
-  // hash signature bytes -> IKM
+  // 2. Hash signature biar jadi IKM (Input Key Material)
   const ikm = await sha256Bytes(sigBytes);
 
+  // 3. Import Key Material ke Web Crypto API
+  // CATATAN: Pakai 'as any' biar TypeScript diam
   const hkdfKey = await crypto.subtle.importKey(
     "raw",
-    ensureArrayBufferBytes(ikm) as Uint8Array<ArrayBuffer>, // Uint8Array is BufferSource
+    ikm as any, 
     "HKDF",
     false,
     ["deriveKey"]
   );
 
-  const saltBytes = ensureArrayBufferBytes(params.salt);
-
+  // 4. Derive Key (Turunkan kunci AES-GCM dari HKDF)
   return crypto.subtle.deriveKey(
     {
       name: "HKDF",
       hash: "SHA-256",
-      salt: saltBytes as Uint8Array<ArrayBuffer>, // BufferSource
+      salt: params.salt as any, // Pakai 'as any' juga di sini
       info: INFO,
     },
     hkdfKey,

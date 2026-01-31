@@ -1,6 +1,21 @@
 "use client";
 
+import { useState } from "react";
+import { useAccount, useWriteContract } from "wagmi";
+import { parseEther } from "viem";
+import { API_BASE } from "@/lib/api/client"; 
 import PaymentRequiredLottie from "@/components/lottie/PaymentRequired";
+
+// --- CONTRACT CONFIG ---
+const SENTRY_ADDRESS = process.env.NEXT_PUBLIC_SENTRY_CONTRACT_ADDRESS as `0x${string}`;
+const IDRX_ADDRESS = process.env.NEXT_PUBLIC_IDRX_TOKEN_ADDRESS as `0x${string}`;
+
+const SENTRY_ABI = [
+  { inputs: [], name: "paySubscription", outputs: [], stateMutability: "nonpayable", type: "function" }
+];
+const TOKEN_ABI = [
+  { inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], name: "approve", outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable", type: "function" }
+];
 
 type Props = {
   open: boolean;
@@ -8,34 +23,144 @@ type Props = {
 };
 
 export default function PaywallModal({ open, onClose }: Props) {
+  const { address } = useAccount();
+  
+  // Transaction State
+  const [step, setStep] = useState<"IDLE" | "APPROVING" | "PAYING" | "SUCCESS">("IDLE");
+  const [faucetLoading, setFaucetLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { writeContractAsync } = useWriteContract();
+
+  // --- LOGIC 1: CLAIM FREE TOKENS (FAUCET) ---
+  const handleFaucet = async () => {
+    if (!address) return;
+    setFaucetLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/faucet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: address }),
+      });
+      const json = await res.json();
+      
+      if (!res.ok) throw new Error(json.error || "Faucet claim failed");
+      
+      alert("🎉 Tokens sent successfully! Please wait a moment, then click Subscribe.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Faucet failed");
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
+
+  // --- LOGIC 2: PAY SUBSCRIPTION (2-Step) ---
+  const handleSubscribe = async () => {
+    setError(null);
+    try {
+      // STEP 1: APPROVE
+      setStep("APPROVING");
+      await writeContractAsync({
+        address: IDRX_ADDRESS,
+        abi: TOKEN_ABI,
+        functionName: "approve",
+        args: [SENTRY_ADDRESS, parseEther("50000")], 
+      });
+
+      // STEP 2: PAY
+      setStep("PAYING");
+      // Artificial delay for blockchain sync
+      await new Promise(r => setTimeout(r, 5000)); 
+      
+      await writeContractAsync({
+        address: SENTRY_ADDRESS,
+        abi: SENTRY_ABI,
+        functionName: "paySubscription",
+        args: [],
+      });
+
+      setStep("SUCCESS");
+      
+      // Reload to update status
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+
+    } catch (err) {
+      console.error(err);
+      setStep("IDLE");
+      setError("Transaction failed or rejected by user.");
+    }
+  };
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-xl">
-        <PaymentRequiredLottie />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111] p-6 shadow-2xl">
+        
+        {step === "SUCCESS" ? (
+          <div className="text-center py-10">
+            <div className="text-4xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold text-white">Payment Successful!</h2>
+            <p className="text-gray-400 mt-2">Welcome to SentryGate.</p>
+            <div className="mt-6 text-sm text-gray-500 animate-pulse">Reloading application...</div>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-center mb-4">
+               <div className="w-32 h-32">
+                 <PaymentRequiredLottie />
+               </div>
+            </div>
 
-        <h2 className="mt-2 text-center text-lg font-semibold text-white">
-          Payment Required
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-400">
-          Akses upload/scan terkunci. Nanti tombol ini akan mengarah ke flow pembayaran di Base.
-        </p>
+            <h2 className="text-center text-xl font-bold text-white">
+              Access Locked 🔒
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-400 leading-relaxed">
+              Subscription required to store encrypted documents.
+              Cost: <span className="text-white font-mono">50.000 IDRX</span> / 30 Days.
+            </p>
 
-        <div className="mt-6 flex gap-3">
-          <button
-            className="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-medium text-black"
-            onClick={() => alert("Nanti diisi: pay flow")}
-          >
-            Pay on Base
-          </button>
-          <button
-            className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
+            {error && (
+              <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-center text-xs text-red-200">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 space-y-3">
+              {/* Subscribe Button */}
+              <button
+                className="w-full rounded-xl bg-white py-3.5 text-sm font-bold text-black hover:scale-[1.02] transition disabled:opacity-50 disabled:scale-100"
+                onClick={handleSubscribe}
+                disabled={step !== "IDLE" || faucetLoading}
+              >
+                {step === "IDLE" && "Subscribe Now (50k IDRX)"}
+                {step === "APPROVING" && "Approving Token Spend..."}
+                {step === "PAYING" && "Confirming Payment..."}
+              </button>
+
+              {/* Faucet Button */}
+              <button
+                className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-gray-300 hover:bg-white/10 transition disabled:opacity-50"
+                onClick={handleFaucet}
+                disabled={step !== "IDLE" || faucetLoading}
+              >
+                {faucetLoading ? "Sending Tokens..." : "🎁 Claim Free Tokens (Faucet)"}
+              </button>
+            </div>
+
+            <button
+              className="mt-4 w-full py-2 text-xs text-gray-500 hover:text-white transition"
+              onClick={onClose}
+              disabled={step !== "IDLE"}
+            >
+              Maybe Later
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

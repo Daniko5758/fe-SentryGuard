@@ -33,6 +33,7 @@ export async function listDocuments(
       };
     }
 
+    // Validasi data array
     if (!json?.success || !Array.isArray(json.data)) {
       return {
         success: false,
@@ -40,7 +41,11 @@ export async function listDocuments(
       };
     }
 
-    return Array.isArray(json.data) ? json.data : [];
+    // ✅ FIX: Return object sesuai interface ListDocumentsResult
+    return {
+      success: true,
+      data: json.data,
+    };
   } catch (err) {
     return {
       success: false,
