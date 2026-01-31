@@ -25,8 +25,8 @@ type Props = {
 export default function PaywallModal({ open, onClose }: Props) {
   const { address } = useAccount();
   
-  // Transaction State
-  const [step, setStep] = useState<"IDLE" | "APPROVING" | "PAYING" | "SUCCESS">("IDLE");
+  // State Transaksi: IDLE -> APPROVING -> APPROVED -> PAYING -> SUCCESS
+  const [step, setStep] = useState<"IDLE" | "APPROVING" | "APPROVED" | "PAYING" | "SUCCESS">("IDLE");
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +48,7 @@ export default function PaywallModal({ open, onClose }: Props) {
       
       if (!res.ok) throw new Error(json.error || "Faucet claim failed");
       
-      alert("🎉 Tokens sent successfully! Please wait a moment, then click Subscribe.");
+      alert("🎉 Tokens sent successfully! Please wait a moment, then click Approve.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Faucet failed");
     } finally {
@@ -56,11 +56,10 @@ export default function PaywallModal({ open, onClose }: Props) {
     }
   };
 
-  // --- LOGIC 2: PAY SUBSCRIPTION (2-Step) ---
-  const handleSubscribe = async () => {
+  // --- LOGIC 2: STEP 1 - APPROVE ---
+  const handleApprove = async () => {
     setError(null);
     try {
-      // STEP 1: APPROVE
       setStep("APPROVING");
       await writeContractAsync({
         address: IDRX_ADDRESS,
@@ -68,11 +67,23 @@ export default function PaywallModal({ open, onClose }: Props) {
         functionName: "approve",
         args: [SENTRY_ADDRESS, parseEther("50000")], 
       });
+      
+      // Setelah sukses approve, kita ubah status jadi APPROVED
+      // User harus klik tombol lagi untuk bayar (Wajib buat Mobile)
+      setStep("APPROVED");
 
-      // STEP 2: PAY
+    } catch (err) {
+      console.error(err);
+      setStep("IDLE");
+      setError("Approval failed/rejected. Please try again.");
+    }
+  };
+
+  // --- LOGIC 3: STEP 2 - PAY ---
+  const handlePay = async () => {
+    setError(null);
+    try {
       setStep("PAYING");
-      // Artificial delay for blockchain sync
-      await new Promise(r => setTimeout(r, 5000)); 
       
       await writeContractAsync({
         address: SENTRY_ADDRESS,
@@ -83,15 +94,15 @@ export default function PaywallModal({ open, onClose }: Props) {
 
       setStep("SUCCESS");
       
-      // Reload to update status
       setTimeout(() => {
         window.location.reload();
       }, 2000);
 
     } catch (err) {
       console.error(err);
-      setStep("IDLE");
-      setError("Transaction failed or rejected by user.");
+      // Kalau gagal bayar, kembalikan ke status APPROVED biar bisa coba bayar lagi tanpa approve ulang
+      setStep("APPROVED");
+      setError("Payment failed. Please try again.");
     }
   };
 
@@ -131,31 +142,47 @@ export default function PaywallModal({ open, onClose }: Props) {
             )}
 
             <div className="mt-6 space-y-3">
-              {/* Subscribe Button */}
-              <button
-                className="w-full rounded-xl bg-white py-3.5 text-sm font-bold text-black hover:scale-[1.02] transition disabled:opacity-50 disabled:scale-100"
-                onClick={handleSubscribe}
-                disabled={step !== "IDLE" || faucetLoading}
-              >
-                {step === "IDLE" && "Subscribe Now (50k IDRX)"}
-                {step === "APPROVING" && "Approving Token Spend..."}
-                {step === "PAYING" && "Confirming Payment..."}
-              </button>
+              
+              {/* LOGIC TOMBOL BERUBAH-UBAH */}
+              
+              {/* KONDISI 1: Belum Approve */}
+              {(step === "IDLE" || step === "APPROVING") && (
+                <button
+                  className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-bold text-white hover:bg-blue-500 transition disabled:opacity-50"
+                  onClick={handleApprove}
+                  disabled={step === "APPROVING" || faucetLoading}
+                >
+                  {step === "APPROVING" ? "Open Wallet to Approve..." : "Step 1: Approve Token"}
+                </button>
+              )}
 
-              {/* Faucet Button */}
-              <button
-                className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-gray-300 hover:bg-white/10 transition disabled:opacity-50"
-                onClick={handleFaucet}
-                disabled={step !== "IDLE" || faucetLoading}
-              >
-                {faucetLoading ? "Sending Tokens..." : "🎁 Claim Free Tokens (Faucet)"}
-              </button>
+              {/* KONDISI 2: Sudah Approve, Tinggal Bayar */}
+              {(step === "APPROVED" || step === "PAYING") && (
+                <button
+                  className="w-full rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white hover:bg-green-500 transition disabled:opacity-50 animate-pulse"
+                  onClick={handlePay}
+                  disabled={step === "PAYING"}
+                >
+                  {step === "PAYING" ? "Open Wallet to Pay..." : "Step 2: Pay Subscription (50k IDRX)"}
+                </button>
+              )}
+
+              {/* Faucet Button (Hanya muncul di awal) */}
+              {step === "IDLE" && (
+                <button
+                  className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-gray-300 hover:bg-white/10 transition disabled:opacity-50"
+                  onClick={handleFaucet}
+                  disabled={faucetLoading}
+                >
+                  {faucetLoading ? "Sending Tokens..." : "🎁 Claim Free Tokens (Faucet)"}
+                </button>
+              )}
             </div>
 
             <button
               className="mt-4 w-full py-2 text-xs text-gray-500 hover:text-white transition"
               onClick={onClose}
-              disabled={step !== "IDLE"}
+              disabled={step === "APPROVING" || step === "PAYING"}
             >
               Maybe Later
             </button>
