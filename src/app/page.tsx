@@ -1,6 +1,13 @@
+"use client";
+import { useEffect } from "react";
+import sdk from "@farcaster/miniapp-sdk";
 import AuthGate from "@/components/AuthGate";
 
 export default function Home() {
+
+  useEffect(() => {
+    sdk.actions.ready();
+  }, []);
   return (
     <main className="min-h-screen bg-black text-white selection:bg-blue-500/30">
       

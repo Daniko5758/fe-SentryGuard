@@ -2,9 +2,28 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "./providers";
 
+
+const appUrl = "https://sentry-gate-app.vercel.app/";
 export const metadata: Metadata = {
   title: "Secure Onchain Vault",
   description: "Encrypted docs + Base + OnchainKit",
+  manifest: "/manifest.json",
+  other: {
+    "fc:miniapp": JSON.stringify({
+      version: "next",
+      imageUrl: `${appUrl}/icon.png`,
+      button: {
+        title: "Open Vault",
+        action: {
+          type: "launch_miniapp",
+          name: "SentryGate",
+          url: appUrl,
+          splashImageUrl: `${appUrl}/icon.png`,
+          splashBackgroundColor: "#000000",
+        },
+        },
+    }),
+  },
 };
 
 export const viewport = {

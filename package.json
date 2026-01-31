@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.2",
+    "@farcaster/miniapp-sdk": "^0.2.2",
     "@google/generative-ai": "^0.24.1",
     "@privy-io/react-auth": "^3.12.0",
     "@privy-io/wagmi": "^4.0.0",
